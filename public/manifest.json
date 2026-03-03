@@ -1,0 +1,9 @@
+{
+  "name": "AURASZN Momentum OS",
+  "short_name": "AURASZN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06060c",
+  "theme_color": "#06060c",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
