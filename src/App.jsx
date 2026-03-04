@@ -46,25 +46,161 @@ function calcHourFill(d) { if(!d||!d.hours) return 0; var f=HOURS.filter(functio
 // --- INTEL ---
 function generateIntel(daysMap,mission,pillars) {
   var allDays=Object.values(daysMap).sort(function(a,b){return a.date.localeCompare(b.date);});
-  if(allDays.length<2) return [{type:"info",msg:"Keep logging days. Intel activates after 3+ days of data."}];
+  if(allDays.length<2) return [{type:"welcome",msg:"Welcome to Intel. Start logging your days and I'll learn your patterns. After 3+ days, I'll start giving you real insights based on YOUR data. Show up tomorrow. I'll be watching.",icon:"🧠"}];
   var ins=[]; var td=todayStr();
-  var last7=allDays.filter(function(d){var diff=daysBtwn(d.date,td); return diff>=0&&diff<7;});
+  var last7=allDays.filter(function(d){var diff=daysBtwn(d.date,td);return diff>=0&&diff<7;});
+  var last14=allDays.filter(function(d){var diff=daysBtwn(d.date,td);return diff>=0&&diff<14;});
   var streak=0; var sd=td; while(daysMap[sd]&&daysMap[sd].completed){streak++;sd=addD(sd,-1);}
-  if(streak>=7) ins.push({type:"win",msg:streak+"-day streak. Locked in. This consistency is building something real."});
-  else if(streak>=3) ins.push({type:"momentum",msg:streak+" days running. Push to 7 for the next gear."});
-  else if(streak===0&&allDays.length>3) ins.push({type:"warning",msg:"Streak broken. One missed day is a slip. Two is a pattern. Reset now."});
+  var dayNum=mission?Math.min(90,Math.max(1,daysBtwn(mission.start,td)+1)):1;
+  var totalDays=allDays.length;
+
+  // === STREAK & CONSISTENCY ===
+  if(streak>=21) ins.push({type:"win",msg:""+streak+"-day streak. You're not the same person who started this. The compound effect is working and everyone around you can feel it. Keep going — you're proving that consistency IS the cheat code.",icon:"👑"});
+  else if(streak>=14) ins.push({type:"win",msg:""+streak+" days running. Two weeks of showing up. This is where most people quit. The fact that you're still here? That's not luck — that's identity.",icon:"🔥"});
+  else if(streak>=7) ins.push({type:"win",msg:""+streak+"-day streak. A full week locked in. You're building real momentum now. The habits are hardening. Don't let anyone or anything break this chain.",icon:"⚡"});
+  else if(streak>=3) ins.push({type:"momentum",msg:""+streak+" days in a row. Good start but don't celebrate yet — the real test is days 5-7. That's when life tries to pull you back. Stay locked.",icon:"📈"});
+  else if(streak===0&&totalDays>3) ins.push({type:"reset",msg:"Streak broken. Listen — one missed day is a slip. Two is a pattern. Three is a new identity forming. Reset NOW. Open this app tomorrow morning before anything else. You didn't come this far to only come this far.",icon:"🔄"});
+
+  // === ZERO DAYS CHECK ===
+  var zeroDaysLast7=7-last7.length;
+  if(zeroDaysLast7>=3&&totalDays>5) ins.push({type:"warning",msg:"You've had "+zeroDaysLast7+" zero days in the last week. That's "+zeroDaysLast7+" days where you gave the old version of yourself permission to run the show. I know life gets busy but even a 60% day beats a zero day. Tomorrow — just open the app, set one intention, do one power move. That's it.",icon:"⚠️"});
+
   if(last7.length>=3){
+    // === PILLAR ANALYSIS ===
     var pAvgs=pillars.map(function(p){var vals=last7.map(function(d){return(d.alignment&&d.alignment[p])||0;});return{name:p,avg:vals.reduce(function(a,b){return a+b;},0)/vals.length};});
-    var wk=pAvgs.reduce(function(mn,p){return p.avg<mn.avg?p:mn;},pAvgs[0]);
-    var st=pAvgs.reduce(function(mx,p){return p.avg>mx.avg?p:mx;},pAvgs[0]);
-    if(wk&&wk.avg<0.5) ins.push({type:"alert",msg:wk.name+" at "+wk.avg.toFixed(1)+"/2. Needs attention tomorrow."});
-    if(st&&st.avg>=1.5) ins.push({type:"win",msg:st.name+" at "+st.avg.toFixed(1)+"/2. Transfer that energy to weaker areas."});
-    var fa=+(last7.reduce(function(s,d){return s+d.scores.focus;},0)/last7.length).toFixed(1);
-    if(fa<5) ins.push({type:"warning",msg:"Focus averaging "+fa+"/10. Reduce distractions."});
+    var sorted=pAvgs.slice().sort(function(a,b){return a.avg-b.avg;});
+    var weakest=sorted[0];
+    var strongest=sorted[sorted.length-1];
+    var secondWeak=sorted.length>1?sorted[1]:null;
+
+    if(weakest&&weakest.avg<2) {
+      var tips={"Faith / Spirit":"Try starting your day with even 2 minutes of prayer or silence before you check your phone. Spiritual alignment is a competitive advantage.","Financial":"One focused income action per day. Log a trade, study a setup, review a system. Small deposits stack into generational wealth.","Health":"Your body carries your dreams. Skip the gym today, skip your potential tomorrow. Even a 20 minute walk counts.","Relationships":"Send one text to someone who matters. Real wealth is measured in relationships, not just bank accounts.","Family":"Time with family isn't a break from the mission — it IS the mission. What's the point of building if you lose the people who matter?","Purpose / Career":"What did you do today to move the needle on your purpose? If the answer is nothing, that's your assignment for tomorrow.","Personal Growth":"Read 10 pages. Watch one educational video. Have one conversation that stretches your thinking. Growth is a daily habit, not an event."};
+      ins.push({type:"alert",msg:weakest.name+" is at "+weakest.avg.toFixed(1)+"/5 this week. This is your biggest growth opportunity right now. "+(tips[weakest.name]||"Focus here tomorrow — your weakest pillar is holding back everything else."),icon:"🎯"});
+    }
+    if(secondWeak&&secondWeak.avg<2&&weakest.avg<2) ins.push({type:"pattern",msg:"Two pillars running low: "+weakest.name+" and "+secondWeak.name+". When multiple pillars drop at once, it usually means you're over-investing in one area at the expense of others. Balance isn't about being perfect everywhere — it's about not letting anything hit zero.",icon:"⚖️"});
+    if(strongest&&strongest.avg>=4) ins.push({type:"win",msg:strongest.name+" is at "+strongest.avg.toFixed(1)+"/5 — you're crushing it here. Now here's the play: transfer that same energy and discipline to your weaker areas. The skills that got you here work everywhere.",icon:"💪"});
+
+    // === PILLAR TREND (compare week 1 vs week 2) ===
+    if(last14.length>=10){
+      var week1=last14.filter(function(d){var diff=daysBtwn(d.date,td);return diff>=7&&diff<14;});
+      var week2=last7;
+      if(week1.length>=3){
+        pillars.forEach(function(pl){
+          var w1Avg=week1.reduce(function(s,d){return s+((d.alignment&&d.alignment[pl])||0);},0)/week1.length;
+          var w2Avg=week2.reduce(function(s,d){return s+((d.alignment&&d.alignment[pl])||0);},0)/week2.length;
+          if(w2Avg-w1Avg>=1.5) ins.push({type:"trend_up",msg:pl+" jumped from "+w1Avg.toFixed(1)+" to "+w2Avg.toFixed(1)+" this week. Whatever you changed — keep doing it. That's real progress showing up in the data.",icon:"📈"});
+          if(w1Avg-w2Avg>=1.5) ins.push({type:"trend_down",msg:pl+" dropped from "+w1Avg.toFixed(1)+" to "+w2Avg.toFixed(1)+" this week. Something shifted. Think back — what changed? Did you skip something? Get distracted? The data doesn't lie. Course correct tomorrow.",icon:"📉"});
+        });
+      }
+    }
+
+    // === OPERATOR SCORES ===
+    var avgFocus=+(last7.reduce(function(s,d){return s+d.scores.focus;},0)/last7.length).toFixed(1);
+    var avgDisc=+(last7.reduce(function(s,d){return s+d.scores.discipline;},0)/last7.length).toFixed(1);
+    var avgEnergy=+(last7.reduce(function(s,d){return s+d.scores.energy;},0)/last7.length).toFixed(1);
+
+    if(avgFocus<4) ins.push({type:"warning",msg:"Focus averaging "+avgFocus+"/10 this week. Distractions are winning. Try this: tomorrow, put your phone in another room for the first 2 hours of your day. Protect your morning focus — it sets the algorithm for everything else.",icon:"🎯"});
+    if(avgDisc<4) ins.push({type:"warning",msg:"Discipline at "+avgDisc+"/10. You know what to do — you're just not doing it consistently. The gap between knowing and doing is where most people live forever. Close that gap tomorrow.",icon:"⚔️"});
+    if(avgEnergy<4) ins.push({type:"insight",msg:"Energy averaging "+avgEnergy+"/10. Low energy isn't a motivation problem — it's usually sleep, nutrition, or spiritual depletion. Check your sleep hours this week. Are you eating clean? Are you starting the day grounded?",icon:"🔋"});
+    if(avgFocus>=8&&avgDisc>=8&&avgEnergy>=8) ins.push({type:"win",msg:"Focus "+avgFocus+", Discipline "+avgDisc+", Energy "+avgEnergy+" — all systems running hot this week. You're in the zone. This is the state where breakthroughs happen. PROTECT this momentum at all costs.",icon:"⚡"});
+
+    // === SLEEP PATTERNS ===
+    var avgSleep=+(last7.reduce(function(s,d){return s+(d.sleep||0);},0)/last7.length).toFixed(1);
+    if(avgSleep<6) ins.push({type:"insight",msg:"Averaging "+avgSleep+" hours of sleep. That's not grind mode — that's sabotage mode. Your decision-making, your trading, your relationships — everything suffers under 6 hours. Sleep is a weapon. Use it.",icon:"😴"});
+    if(avgSleep>=8) ins.push({type:"win",msg:""+avgSleep+" hours average sleep. Recovery game is strong. This is fueling everything else you're doing right. Keep it up.",icon:"🛌"});
+
+    // === WORKOUT CONSISTENCY ===
+    var workoutDays=last7.filter(function(d){return d.workout;}).length;
+    if(workoutDays===0&&last7.length>=5) ins.push({type:"alert",msg:"Zero workouts logged this week. Your body carries your ambition. You can't operate at peak mental performance with a neglected body. Even 20 minutes tomorrow. No excuses.",icon:"💪"});
+    else if(workoutDays>=5) ins.push({type:"win",msg:""+workoutDays+" workouts this week. The discipline you build in the gym transfers to every other area of your life. This is compound interest for your body.",icon:"🏋️"});
+
+    // === SPIRITUAL CONSISTENCY ===
+    var prayerDays=last7.filter(function(d){return d.prayer;}).length;
+    if(prayerDays===0&&last7.length>=5) ins.push({type:"insight",msg:"No prayer logged this week. Faith isn't separate from the mission — it IS the foundation. Even 60 seconds of gratitude before your first trade changes the energy of your entire day.",icon:"🙏"});
+    else if(prayerDays>=6) ins.push({type:"win",msg:"Prayer every day this week. Spiritual alignment is your edge that can't be backtested. Stay connected.",icon:"✨"});
+
+    // === POWER MOVES COMPLETION ===
+    var totalPM=0; var donePM=0;
+    last7.forEach(function(d){(d.power_moves||[]).forEach(function(pm){if(pm.title){totalPM++;if(pm.done)donePM++;}});});
+    var pmRate=totalPM>0?Math.round((donePM/totalPM)*100):0;
+    if(pmRate<40&&totalPM>5) ins.push({type:"warning",msg:"Only finishing "+pmRate+"% of your Power Moves. You're setting tasks but not executing. Two options: either you're overloading yourself (set fewer, more important moves) or you're not protecting your execution time. Which one is it?",icon:"📋"});
+    else if(pmRate>=80&&totalPM>5) ins.push({type:"win",msg:""+pmRate+"% Power Move completion rate. You say it, you do it. That's operator energy. Your word to yourself is becoming unbreakable.",icon:"✅"});
+
+    // === TRADE JOURNAL PATTERNS ===
+    var trades=[];
+    allDays.forEach(function(d){if(d.journals&&d.journals.trade)(d.journals.trade).forEach(function(j){if(j.instrument)trades.push(Object.assign({},j,{date:d.date}));});});
+    if(trades.length>=5){
+      var wins=trades.filter(function(t){return parseFloat(t.pnl||0)>0;});
+      var losses=trades.filter(function(t){return parseFloat(t.pnl||0)<0;});
+      var winRate=Math.round((wins.length/trades.length)*100);
+      var totalPnl=trades.reduce(function(s,t){return s+parseFloat(t.pnl||0);},0);
+      if(winRate>=60) ins.push({type:"win",msg:""+winRate+"% win rate across "+trades.length+" logged trades. The system is working. Trust it. Don't fix what isn't broken.",icon:"📊"});
+      else if(winRate<40&&trades.length>=10) ins.push({type:"alert",msg:"Win rate at "+winRate+"% across "+trades.length+" trades. Time to review: Are you following your system? Are you revenge trading? Check your last 5 losses — I bet you'll find a pattern.",icon:"📉"});
+      if(totalPnl>0) ins.push({type:"momentum",msg:"Net P&L: +$"+totalPnl.toFixed(2)+" across all logged trades. You're profitable. Now the game is risk management and consistency — protect what you've built.",icon:"💰"});
+
+      // Check for revenge trading patterns
+      var revengeSigns=0;
+      for(var ti=1;ti<trades.length;ti++){
+        if(parseFloat(trades[ti-1].pnl||0)<0&&parseFloat(trades[ti].pnl||0)<0&&trades[ti].date===trades[ti-1].date) revengeSigns++;
+      }
+      if(revengeSigns>=2) ins.push({type:"pattern",msg:"I'm seeing back-to-back losses on the same day "+revengeSigns+" times. That looks like revenge trading. When you take a loss, walk away for at least 30 minutes. The market will be there tomorrow. Your account might not be if you keep chasing.",icon:"🚨"});
+    }
+
+    // === COMPLETION PATTERNS ===
+    var avgComp=Math.round(last7.reduce(function(s,d){return s+calcComp(d);},0)/last7.length);
+    if(avgComp>=85) ins.push({type:"win",msg:"Averaging "+avgComp+"% day completion this week. You're not just going through the motions — you're actually doing the work. This version of you is dangerous.",icon:"🔥"});
+    else if(avgComp<50&&last7.length>=5) ins.push({type:"insight",msg:"Completing about "+avgComp+"% of your daily checklist. You don't need to be perfect — but you do need to be consistent. Focus on getting 3 things done every day: intention, one power move, and your checkpoint. Start there.",icon:"📝"});
+
+    // === DAY-OF-WEEK PATTERNS ===
+    if(allDays.length>=14){
+      var dayOfWeekComps={};
+      allDays.forEach(function(d){var dow=new Date(d.date+"T12:00:00").getDay();if(!dayOfWeekComps[dow])dayOfWeekComps[dow]=[];dayOfWeekComps[dow].push(calcComp(d));});
+      var dayNames=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      var worstDay=null; var worstAvg=100; var bestDay=null; var bestAvg=0;
+      Object.keys(dayOfWeekComps).forEach(function(dow){
+        var avg=dayOfWeekComps[dow].reduce(function(s,v){return s+v;},0)/dayOfWeekComps[dow].length;
+        if(avg<worstAvg&&dayOfWeekComps[dow].length>=2){worstAvg=avg;worstDay=dayNames[dow];}
+        if(avg>bestAvg&&dayOfWeekComps[dow].length>=2){bestAvg=avg;bestDay=dayNames[dow];}
+      });
+      if(worstDay&&worstAvg<50) ins.push({type:"pattern",msg:worstDay+"s are your weakest day — averaging "+Math.round(worstAvg)+"% completion. Knowing this is power. Pre-plan your "+worstDay+"s the night before. Set your intention before you go to sleep.",icon:"📅"});
+      if(bestDay&&bestAvg>=80) ins.push({type:"pattern",msg:bestDay+"s are your strongest — "+Math.round(bestAvg)+"% average. What's different about those days? Replicate that energy across the whole week.",icon:"📅"});
+    }
   }
-  if(ins.length===0) ins.push({type:"info",msg:"Systems nominal. Keep executing."});
+
+  // === MISSION PROGRESS ===
+  if(mission){
+    if(dayNum<=7) ins.push({type:"insight",msg:"Week 1 of 90. Right now the goal isn't perfection — it's building the habit of showing up. Every day you open this app and log something is a vote for the person you're becoming.",icon:"🚀"});
+    else if(dayNum>=80) ins.push({type:"momentum",msg:"Day "+dayNum+" of 90. "+Math.max(0,90-dayNum)+" days left. You're in the final stretch. Finish strong — how you end this defines how you start the next one. The person who finishes is not the person who started.",icon:"🏁"});
+    else if(dayNum===45) ins.push({type:"insight",msg:"Halfway point. This is the boring middle — the part nobody posts about on social media. But this is where champions are built. The people who push through the middle are the ones standing at the end.",icon:"⛰️"});
+  }
+
+  // === NEXT MOVES ===
+  if(last7.length>=3){
+    var actionItems=[];
+    var wk=pAvgs?pAvgs.slice().sort(function(a,b){return a.avg-b.avg;})[0]:null;
+    if(wk&&wk.avg<3) actionItems.push("Invest 15 minutes in "+wk.name+" tomorrow");
+    if(avgFocus<5) actionItems.push("Phone-free first 2 hours of your morning");
+    if(workoutDays<3) actionItems.push("Move your body — gym, walk, anything");
+    if(prayerDays<3) actionItems.push("Start tomorrow with 2 minutes of prayer");
+    if(avgSleep<7) actionItems.push("Get to bed 30 minutes earlier tonight");
+    if(actionItems.length>0) ins.push({type:"next",msg:"Your next best moves: "+actionItems.slice(0,3).join(" → ")+". Small adjustments. Big results. Trust the system.",icon:"🎯"});
+  }
+
+  // Quote based on state
+  var stateQuotes={
+    great:["You're operating at a level most people dream about. Stay humble. Stay hungry. Stay dangerous.","This is what alignment looks like. Every pillar firing, every day logged. This is the version of you that wins."],
+    good:["Solid week. You're building something real. Don't compare your chapter 3 to someone else's chapter 20.","Progress isn't always dramatic. Sometimes it's just showing up one more day than you did last month."],
+    struggling:["Tough week — I see it in the data. But here's what I also see: you're still here. You're still opening this app. That matters more than any score.","The comeback is always stronger than the setback. Tomorrow is a clean slate. Use it."],
+    new:["The hardest part is starting. You already did that. Now just don't stop.","Every expert was once a beginner. Every streak started with day one."]
+  };
+  var state=totalDays<5?"new":streak>=5&&avgComp>=70?"great":streak>=2?"good":"struggling";
+  var sq=stateQuotes[state]; var rq=sq[Math.floor(Math.random()*sq.length)];
+  ins.push({type:"quote",msg:rq,icon:"💭"});
+
+  if(ins.length===0) ins.push({type:"info",msg:"Systems nominal. Keep executing. I'll flag anything important as your data grows.",icon:"✅"});
   return ins;
 }
+
 
 // --- STYLES ---
 function Styles(p) { return <style dangerouslySetInnerHTML={{__html:"@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&family=Chakra+Petch:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');:root{--ac:"+p.accent+";--bg:#06060c;--bg2:#0d0d16;--bg3:#14141f;--bg4:#1c1c2a;--brd:#1e1e30;--tx:#d8d8e4;--tx2:#6a6a80;--gw:"+p.accent+"40;--gw2:"+p.accent+"18;}*{box-sizing:border-box;margin:0;padding:0;}html{font-size:15px;}body{background:var(--bg);color:var(--tx);font-family:'Chakra Petch',sans-serif;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:var(--ac);}input,textarea,select{background:var(--bg2);color:var(--tx);border:1px solid var(--brd);border-radius:6px;padding:8px 12px;font-family:'Chakra Petch',sans-serif;font-size:14px;outline:none;transition:border .2s;width:100%;}input:focus,textarea:focus,select:focus{border-color:var(--ac);}textarea{resize:vertical;min-height:50px;}button{cursor:pointer;font-family:'Chakra Petch',sans-serif;}@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes flick{0%,10%{opacity:0}12%{opacity:1}14%{opacity:0}16%,100%{opacity:1}}.au{animation:fadeUp .4s ease both}"}}/>; }
@@ -253,18 +389,18 @@ function PillarBars(p) {
   var pData=pillars.map(function(pl){
     var vals=last7.map(function(d){return(d.alignment&&d.alignment[pl])||0;});
     var avg=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
-    return{name:pl,avg:avg,pct:Math.round((avg/2)*100)};
+    return{name:pl,avg:avg,pct:Math.round((avg/5)*100)};
   });
   var maxAvg=pData.reduce(function(mx,d){return d.avg>mx?d.avg:mx;},0);
   var pillarColors=["#00e5ff","#ff003c","#39ff14","#ff6b00","#bf00ff","#ffea00","#ff0099","#00ff88"];
   return <div style={{display:"grid",gap:8}}>{pData.map(function(pd,i){
     var c=pillarColors[i%pillarColors.length];
-    var isWeak=pd.avg<0.5&&last7.length>=3;
-    var isStrong=pd.avg>=1.5;
+    var isWeak=pd.avg<2&&last7.length>=3;
+    var isStrong=pd.avg>=4;
     return <div key={pd.name}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
         <span style={{fontSize:12,color:isWeak?"#ff003c":isStrong?c:"var(--tx2)",fontWeight:isStrong?600:400}}>{pd.name}</span>
-        <span style={{fontSize:11,fontFamily:"'Oxanium',sans-serif",color:isWeak?"#ff003c":c,fontWeight:600}}>{pd.avg.toFixed(1)}/2</span>
+        <span style={{fontSize:11,fontFamily:"'Oxanium',sans-serif",color:isWeak?"#ff003c":c,fontWeight:600}}>{pd.avg.toFixed(1)}/5</span>
       </div>
       <div style={{background:"var(--bg4)",borderRadius:4,height:10,overflow:"hidden",position:"relative"}}>
         <div style={{width:pd.pct+"%",height:"100%",borderRadius:4,background:"linear-gradient(90deg,"+c+"80,"+c+")",transition:"width 1s ease",boxShadow:"0 0 10px "+c+"40",position:"relative"}}>
@@ -417,7 +553,7 @@ function TodayPage(p) {
     <Card style={{marginBottom:14}}><Lbl>Wealth Builder</Lbl><input value={day.wealth} onChange={function(e){u("wealth",e.target.value);}} placeholder="One focused income action..."/></Card>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}><Card><Lbl>Energy + Body</Lbl><Tog value={day.workout} onChange={function(v){u("workout",v);}} label="Workout"/><div style={{marginTop:6}}><span style={{fontSize:11,color:"var(--tx2)"}}>Sleep hrs</span><input type="number" value={day.sleep} onChange={function(e){u("sleep",Number(e.target.value));}} min={0} max={14} style={{marginTop:2}}/></div></Card><Card><Lbl>Spiritual Anchor</Lbl><Tog value={day.prayer} onChange={function(v){u("prayer",v);}} label="Prayer"/><Tog value={day.reflection} onChange={function(v){u("reflection",v);}} label="Reflection"/><div style={{marginTop:4}}><input value={day.gratitude} onChange={function(e){u("gratitude",e.target.value);}} placeholder="Grateful for..." style={{fontSize:12}}/></div></Card></div>
     <Card style={{marginBottom:14}}><Lbl>Operator Scores</Lbl><Sld value={day.scores.focus} onChange={function(v){uS("focus",v);}} label="Focus"/><Sld value={day.scores.discipline} onChange={function(v){uS("discipline",v);}} label="Discipline"/><Sld value={day.scores.energy} onChange={function(v){uS("energy",v);}} label="Energy"/></Card>
-    <Card style={{marginBottom:14}}><Lbl>Pillar Alignment</Lbl><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:6}}>{pillars.map(function(pl){var val=(day.alignment&&day.alignment[pl])||0;return <div key={pl} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:5,background:"var(--bg3)"}}><span style={{fontSize:12,flex:1}}>{pl}</span><div style={{display:"flex",gap:3}}>{[0,1,2].map(function(v){var isAct=val===v;return <div key={v} onClick={function(){uA(pl,v);}} style={{width:26,height:26,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,fontFamily:"'Oxanium',sans-serif",background:isAct?accent:"var(--bg)",color:isAct?"#000":"var(--tx2)",border:"1px solid "+(isAct?accent:"var(--brd)"),transition:"all .2s"}}>{v}</div>;})}</div></div>;})}</div></Card>
+    <Card style={{marginBottom:14}}><Lbl>Pillar Alignment</Lbl><div style={{display:"grid",gap:8}}>{pillars.map(function(pl){var val=(day.alignment&&day.alignment[pl])||0;return <div key={pl} style={{padding:"8px 12px",borderRadius:6,background:"var(--bg3)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:12}}>{pl}</span><span style={{fontSize:11,fontFamily:"'Oxanium',sans-serif",fontWeight:700,color:val>=4?accent:val>=2?"var(--tx)":"var(--tx2)"}}>{val}/5</span></div><div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(function(v){var filled=val>=v;var c=v<=2?"#ff003c":v<=3?"#ff6b00":v<=4?accent:"#39ff14";return <div key={v} onClick={function(){uA(pl,val===v?0:v);}} style={{flex:1,height:8,borderRadius:4,cursor:"pointer",background:filled?c:"var(--bg4)",transition:"all .2s",boxShadow:filled?"0 0 6px "+c+"40":"none"}}/>;})}</div></div>;})}</div></Card>
     <Card style={{marginBottom:14}}><Lbl>Reality Checkpoint</Lbl><div style={{display:"grid",gap:8}}>{[["win","Win"],["lesson","Lesson"],["trigger","Trigger"]].map(function(arr){return <div key={arr[0]}><span style={{fontSize:11,color:"var(--tx2)"}}>{arr[1]}</span><input value={day.checkpoint[arr[0]]} onChange={function(e){uC(arr[0],e.target.value);}} placeholder={arr[1]+"..."} style={{marginTop:2}}/></div>;})}<div><span style={{fontSize:11,color:"var(--tx2)"}}>Response</span><div style={{display:"flex",gap:6,marginTop:3}}>{["responded","reacted"].map(function(r){return <Btn key={r} sm v={day.checkpoint.reaction===r?"ac":"def"} onClick={function(){uC("reaction",r);}}>{r==="responded"?"Responded":"Reacted"}</Btn>;})}</div></div></div></Card>
     <Card style={{marginBottom:14,textAlign:"center"}}><Lbl>Day Completion</Lbl><div style={{fontFamily:"'Oxanium',sans-serif",fontSize:34,fontWeight:800,color:comp>=80?"var(--ac)":"var(--tx)",marginBottom:10}}>{comp}%</div><Bar pct={comp} h={8}/>{!day.completed&&comp>=50&&<Btn v="ac" style={{marginTop:14,width:"100%"}} onClick={function(){u("completed",true);setActivated(true);setTimeout(function(){setActivated(false);},2000);}}><Ic n="zap" s={14}/> ACTIVATE DAY COMPLETE</Btn>}{day.completed&&<div style={{marginTop:14,fontFamily:"'Oxanium',sans-serif",fontSize:13,color:"var(--ac)",letterSpacing:2}}>DAY ACTIVATED</div>}</Card>
     {activated&&<div style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",background:accent+"10",animation:"fadeIn .3s ease"}}><div style={{fontFamily:"'Oxanium',sans-serif",fontSize:22,fontWeight:800,color:accent,letterSpacing:5,textShadow:"0 0 30px "+accent}}>DAY ACTIVATED</div></div>}
@@ -537,7 +673,7 @@ function DashboardPage(p) {
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>{[{l:"Day",v:dayNum+"/90"},{l:"Streak",v:streak+"d"},{l:"7d Avg",v:comp7+"%"},{l:"Level",v:"LVL "+level}].map(function(s,i){return <Card key={i} style={{textAlign:"center",padding:12}}><Lbl>{s.l}</Lbl><div style={{fontFamily:"'Oxanium',sans-serif",fontSize:20,fontWeight:700,color:"var(--ac)",marginTop:3}}>{s.v}</div></Card>;})}</div>
     <Card style={{marginBottom:14}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><Lbl>XP</Lbl><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"var(--tx2)"}}>{totalXP} XP | {500-xpIn} to next</span></div><Bar pct={(xpIn/500)*100} h={6}/></Card>
     <Card style={{marginBottom:14}}><Lbl>Operator Intel</Lbl><div style={{display:"grid",gap:8,marginTop:6}}>{intel.map(function(ins,i){return <div key={i} style={{padding:"10px 12px",borderRadius:6,background:"var(--bg3)",borderLeft:"3px solid "+(ic[ins.type]||"var(--tx2)"),fontSize:13,lineHeight:1.6}}>{ins.msg}</div>;})}</div></Card>
-    <Card style={{marginBottom:14}}><Lbl>Pillar Alignment</Lbl><div style={{display:"grid",gap:6}}>{pAvgs.map(function(pl){var isW=pl===weakest;return <div key={pl.name}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:isW?"#ff003c":"var(--tx2)"}}>{pl.name}{isW?" !":""}</span><span style={{fontFamily:"'Oxanium',sans-serif",fontSize:11}}>{pl.avg.toFixed(1)}/2</span></div><Bar pct={(pl.avg/2)*100} h={3} color={isW?"#ff003c":accent}/></div>;})}</div></Card>
+    <Card style={{marginBottom:14}}><Lbl>Pillar Alignment</Lbl><div style={{display:"grid",gap:6}}>{pAvgs.map(function(pl){var isW=pl===weakest;return <div key={pl.name}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:isW?"#ff003c":"var(--tx2)"}}>{pl.name}{isW?" !":""}</span><span style={{fontFamily:"'Oxanium',sans-serif",fontSize:11}}>{pl.avg.toFixed(1)}/5</span></div><Bar pct={(pl.avg/5)*100} h={3} color={isW?"#ff003c":accent}/></div>;})}</div></Card>
     <Card><Lbl>Avg Scores (7d)</Lbl>{["focus","discipline","energy"].map(function(k){var v=last7.length?(last7.reduce(function(s,d){return s+d.scores[k];},0)/last7.length).toFixed(1):"0";return <div key={k} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span style={{color:"var(--tx2)",textTransform:"capitalize"}}>{k}</span><span style={{fontFamily:"'Oxanium',sans-serif",color:"var(--ac)"}}>{v}</span></div><Bar pct={parseFloat(v)*10} h={3}/></div>;})}</Card>
   </div>;
 }
@@ -545,9 +681,27 @@ function DashboardPage(p) {
 // --- INTEL ---
 function IntelPage(p) {
   var intel=generateIntel(p.days,p.mission,p.pillars);
-  var colors={win:"#39ff14",warning:"#ff6b00",alert:"#ff003c",momentum:"var(--ac)",pattern:"#bf00ff",info:"var(--tx2)"};
-  var labels={win:"WIN",warning:"WARNING",alert:"ALERT",momentum:"MOMENTUM",pattern:"PATTERN",info:"INFO"};
-  return <div style={{maxWidth:660,margin:"0 auto"}}><Card style={{marginBottom:14,textAlign:"center"}}><div style={{fontFamily:"'Oxanium',sans-serif",fontSize:16,fontWeight:700,color:"var(--ac)",letterSpacing:2,marginBottom:4}}>OPERATOR INTEL</div><div style={{fontSize:12,color:"var(--tx2)"}}>Pattern analysis from your data.</div></Card><div style={{display:"grid",gap:10}}>{intel.map(function(ins,i){return <Card key={i} style={{borderLeft:"3px solid "+(colors[ins.type]||"var(--tx2)"),padding:"14px 16px"}}><div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:colors[ins.type],letterSpacing:1.5,marginBottom:6,fontWeight:600}}>{labels[ins.type]||"INTEL"}</div><div style={{fontSize:14,lineHeight:1.7}}>{ins.msg}</div></Card>;})}</div></div>;
+  var colors={win:"#39ff14",warning:"#ff6b00",alert:"#ff003c",momentum:"var(--ac)",pattern:"#bf00ff",info:"var(--tx2)",insight:"#00e5ff",reset:"#ff003c",welcome:"var(--ac)",trend_up:"#39ff14",trend_down:"#ff6b00",next:"#ffea00",quote:"#bf00ff"};
+  var labels={win:"WIN",warning:"HEADS UP",alert:"ALERT",momentum:"MOMENTUM",pattern:"PATTERN",info:"STATUS",insight:"INSIGHT",reset:"RESET NOW",welcome:"WELCOME",trend_up:"TRENDING UP",trend_down:"TRENDING DOWN",next:"NEXT MOVES",quote:"REAL TALK"};
+  return <div style={{maxWidth:660,margin:"0 auto"}}>
+    <Card style={{marginBottom:14,textAlign:"center",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:0,opacity:0.04,background:"radial-gradient(circle at 50% 50%,var(--ac),transparent 70%)"}}/>
+      <div style={{fontFamily:"'Oxanium',sans-serif",fontSize:16,fontWeight:700,color:"var(--ac)",letterSpacing:2,marginBottom:4,position:"relative"}}>OPERATOR INTEL</div>
+      <div style={{fontSize:12,color:"var(--tx2)",position:"relative"}}>Your personal pattern analyst. Powered by your data.</div>
+    </Card>
+    <div style={{display:"grid",gap:10}}>
+      {intel.map(function(ins,i){
+        var c=colors[ins.type]||"var(--tx2)";
+        return <Card key={i} style={{borderLeft:"3px solid "+c,padding:"16px 18px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:16}}>{ins.icon||"📡"}</span>
+            <span style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:c,letterSpacing:1.5,fontWeight:600}}>{labels[ins.type]||"INTEL"}</span>
+          </div>
+          <div style={{fontSize:14,lineHeight:1.8,color:"var(--tx)"}}>{ins.msg}</div>
+        </Card>;
+      })}
+    </div>
+  </div>;
 }
 
 // --- HISTORY ---
